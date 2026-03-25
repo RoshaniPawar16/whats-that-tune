@@ -5,20 +5,22 @@ Run:
     uvicorn api:app --reload
 
 Endpoints:
-    POST /session              → create a new session
-    POST /session/{id}/turn    → run one agent turn
-    GET  /session/{id}/state   → inspect current belief state
+    POST /session              -> create a new session
+    POST /session/{id}/turn    -> one agent turn (multipart: message + optional audio)
+    GET  /session/{id}/state   -> inspect current belief state
 """
 
 from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import tempfile
 import traceback
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from agent import run_agent
@@ -35,21 +37,29 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 _sessions: dict[str, Session] = {}
 
 
-# ── Request / Response models ──────────────────────────────────────────────────
-
-class TurnRequest(BaseModel):
-    message: str
-    audio_path: Optional[str] = None
-
+# ── Response models ────────────────────────────────────────────────────────────
 
 class SessionCreated(BaseModel):
     session_id: str
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+
+@app.get("/")
+def serve_frontend():
+    """Serve the frontend UI."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "index.html"))
+
 
 @app.post("/session", status_code=201)
 def create_session() -> SessionCreated:
@@ -60,20 +70,29 @@ def create_session() -> SessionCreated:
 
 
 @app.post("/session/{session_id}/turn")
-def run_turn(session_id: str, body: TurnRequest) -> dict:
-    """Submit a user message (and optional audio path) for one agent turn.
-
-    Returns the agent's JSON response with updated_candidates, next_question,
-    message_to_user, and confidence_summary.
-    """
+async def run_turn(
+    session_id: str,
+    message: str = Form(""),
+    audio: Optional[UploadFile] = File(default=None),
+) -> dict:
+    """One agent turn. Accepts multipart/form-data with an optional audio blob and text message."""
     session = _sessions.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
     if session.resolved:
         raise HTTPException(status_code=409, detail="Session is already resolved")
 
+    tmp_path = None
     try:
-        return run_agent(session, body.message, audio_path=body.audio_path)
+        if audio and audio.filename:
+            suffix = os.path.splitext(audio.filename)[1] or ".webm"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(await audio.read())
+                tmp_path = tmp.name
+
+        msg = message or ("(audio clue)" if tmp_path else "")
+        return run_agent(session, msg, audio_path=tmp_path)
+
     except Exception as exc:
         tb = traceback.format_exc()
         print(f"[turn error] {exc}\n{tb}")
@@ -81,6 +100,9 @@ def run_turn(session_id: str, body: TurnRequest) -> dict:
             status_code=500,
             content={"error": type(exc).__name__, "detail": str(exc)},
         )
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 @app.get("/session/{session_id}/state")

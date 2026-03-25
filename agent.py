@@ -8,6 +8,7 @@ load_dotenv()
 
 import anthropic
 import json
+import re
 from typing import Optional
 from session import Session
 from tools import TOOL_DEFINITIONS, dispatch_tool
@@ -81,19 +82,19 @@ wide-interval leaps that are melodically similar to Western pop and R&B. The sam
 contour can point equally to either tradition. Do not assume Western unless the user has
 explicitly indicated otherwise.
 
-Think step by step before responding. Use <thinking> to reason about candidate updates
-before producing your final response.
+Think step by step before responding.
 </reasoning_strategy>
 
 <response_format>
-Always respond with a JSON object containing:
+Your entire response must be a single raw JSON object — no prose before it, no prose after it,
+no markdown fences, no explanation outside the object. Parsers will break if you add anything else.
+
 {
   "updated_candidates": [...],  // ranked list, highest confidence first
   "next_question": "...",       // ONE discriminative question, or null if confident
-  "message_to_user": "...",     // friendly, encouraging, conversational
+  "message_to_user": "...",     // friendly, encouraging, conversational (3 sentences max)
   "confidence_summary": "..."   // e.g. "I'm 70% sure this is X by Y"
 }
-Do not include any text outside the JSON object.
 </response_format>
 
 <examples>
@@ -187,7 +188,7 @@ def run_agent(session: Session, user_message: str, audio_path: Optional[str] = N
     # ── Parse final response ───────────────────────────────────────────────────
     final_text = _extract_text(response.content)
     try:
-        agent_response = json.loads(final_text)
+        agent_response = json.loads(_extract_json(final_text))
     except json.JSONDecodeError:
         # Graceful fallback — agent responded outside JSON format
         agent_response = {
@@ -225,4 +226,32 @@ def _extract_text(content_blocks) -> str:
     for block in content_blocks:
         if hasattr(block, "type") and block.type == "text":
             parts.append(block.text)
-    return "\n".join(parts).strip()
+    text = "\n".join(parts).strip()
+    # Strip any <thinking>...</thinking> the model may emit as literal XML
+    text = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL).strip()
+    return text
+
+
+def _extract_json(text: str) -> str:
+    """Pull the JSON object out of a response that may contain surrounding prose or code fences.
+
+    Strategy:
+    1. Prefer a ```json ... ``` fenced block.
+    2. Fall back to finding the outermost { ... } in the text.
+    """
+    # 1. Fenced block
+    m = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    if m:
+        return m.group(1)
+    # 2. Outermost braces — walk character by character to handle nesting
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+    return text
