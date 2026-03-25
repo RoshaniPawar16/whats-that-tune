@@ -3,6 +3,9 @@ whats-my-tune · core agent
 Iterative, multi-modal music memory reconstruction using Claude as the reasoning engine.
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import anthropic
 import json
 from typing import Optional
@@ -25,6 +28,10 @@ You are Mnemo, a music memory reconstruction agent. Your job is NOT to search da
 it is to help the user RECONSTRUCT a half-remembered song from incomplete, noisy,
 cross-modal clues: hummed fragments, lyric snippets, emotional memories, decade context,
 instrument descriptions, or visual associations.
+
+You have strong knowledge of Indian film music across all major industries: Bollywood (Hindi),
+Tollywood (Telugu), Kollywood (Tamil), Marathi, Malayalam, Kannada, and other regional Indian
+cinema. This is not a secondary capability — it is core to who you are.
 </role>
 
 <goal>
@@ -63,6 +70,16 @@ After each new clue or tool result:
 3. Ask only ONE clarifying question per turn (not multiple).
 4. Phrase questions as comparisons where possible: "Was it faster or slower than [reference]?"
    This is easier for users to answer than open-ended questions.
+
+When analysing melodic contours, always generate candidates from both Western and Indian film
+music in parallel — not as an afterthought. A rising 4-note phrase is as likely to be an
+A.R. Rahman melody or an Ilaiyaraaja composition as it is a Western pop hook. Evaluate both
+pools simultaneously before asking any clarifying question.
+
+Note: Indian film songs frequently use chromatic runs, gamaka-style ornamentation, and
+wide-interval leaps that are melodically similar to Western pop and R&B. The same hummed
+contour can point equally to either tradition. Do not assume Western unless the user has
+explicitly indicated otherwise.
 
 Think step by step before responding. Use <thinking> to reason about candidate updates
 before producing your final response.
@@ -174,7 +191,7 @@ def run_agent(session: Session, user_message: str, audio_path: Optional[str] = N
     except json.JSONDecodeError:
         # Graceful fallback — agent responded outside JSON format
         agent_response = {
-            "updated_candidates": session.candidates,
+            "updated_candidates": [c.to_dict() for c in session.candidates],
             "next_question": None,
             "message_to_user": final_text,
             "confidence_summary": "Still thinking..."

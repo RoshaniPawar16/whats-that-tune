@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Private files folder (local audio, recordings, temp files)
+files/
+
+# CLI (local dev tool, not part of the repo)
+cli.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Audio temp files
+*.wav
+*.mp3
+*.m4a
+
+# OS
+.DS_Store
