@@ -10,16 +10,24 @@ Endpoints:
     GET  /session/{id}/state   → inspect current belief state
 """
 
-from typing import Optional
-
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
 load_dotenv()
 
-from agent import run_agent  # noqa: E402 (after load_dotenv)
-from session import Session  # noqa: E402
+import os
+import traceback
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from agent import run_agent
+from session import Session
+
+# ── Startup key check (visible in uvicorn logs) ────────────────────────────────
+_api_key = os.getenv("ANTHROPIC_API_KEY", "")
+print(f"[startup] ANTHROPIC_API_KEY: {'SET' if _api_key else 'NOT SET'} "
+      f"(prefix={_api_key[:12]!r})")
 
 app = FastAPI(
     title="whats-that-tune",
@@ -43,12 +51,12 @@ class SessionCreated(BaseModel):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
-@app.post("/session", response_model=SessionCreated, status_code=201)
-def create_session() -> dict:
+@app.post("/session", status_code=201)
+def create_session() -> SessionCreated:
     """Start a new music-reconstruction session."""
     session = Session()
     _sessions[session.id] = session
-    return {"session_id": session.id}
+    return SessionCreated(session_id=session.id)
 
 
 @app.post("/session/{session_id}/turn")
@@ -64,7 +72,15 @@ def run_turn(session_id: str, body: TurnRequest) -> dict:
     if session.resolved:
         raise HTTPException(status_code=409, detail="Session is already resolved")
 
-    return run_agent(session, body.message, audio_path=body.audio_path)
+    try:
+        return run_agent(session, body.message, audio_path=body.audio_path)
+    except Exception as exc:
+        tb = traceback.format_exc()
+        print(f"[turn error] {exc}\n{tb}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": type(exc).__name__, "detail": str(exc)},
+        )
 
 
 @app.get("/session/{session_id}/state")
