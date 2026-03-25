@@ -28,6 +28,6 @@ flowchart TD
 
     I -->|Yes| K[Play 30s Preview\nSpotify preview URL]
     K --> L{User confirms?}
-    L -->|No — wrong song| J
+    L -->|No - wrong song| J
     L -->|Yes| M([Song found ✓])
 ```

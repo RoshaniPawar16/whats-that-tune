@@ -1,6 +1,6 @@
 # whats-that-tune
 
-You know that feeling — a song is stuck in your head but you can't remember what it's called. You hum it to people and they shrug.
+You know that feeling - a song is stuck in your head but you can't remember what it's called. You hum it to people and they shrug.
 
 This is a fix for that.
 
