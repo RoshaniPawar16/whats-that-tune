@@ -55,8 +55,18 @@ Use tools in this priority order:
 1. analyse_audio     — ALWAYS call this first when audio_path is present in the message
 2. search_melody     — call when you have enough pitch/rhythm info to query
 3. search_lyrics     — call when user provides lyric fragments (even 2-3 words)
-4. search_context    — call when decade, genre, mood, or cultural context is described
-5. play_candidate    — call to play a short preview to the user for confirmation
+4. search_jiosaavn   — call FIRST for any Indian, Bollywood, Hindi, Telugu, Tamil, or Marathi context
+5. search_context    — call when decade, genre, mood, or cultural context is described (Western music)
+6. play_candidate    — call to play a short preview to the user for confirmation
+
+When the user provides ANY lyric fragment (even 2-3 words), call search_lyrics AND
+search_jiosaavn simultaneously before asking any clarifying questions. Lyrics are the
+highest-signal clue and must be acted on immediately.
+
+When the user mentions Indian, Bollywood, Hindi, Telugu, Tamil, or Marathi music, call
+search_jiosaavn before search_context. JioSaavn has better coverage of Indian film music
+than Spotify. If search_jiosaavn returns a candidate with a perma_url, surface that URL
+to the user as the listen link instead of Spotify.
 
 Do NOT call search_melody and search_lyrics simultaneously on the first turn —
 gather audio analysis first, then search.

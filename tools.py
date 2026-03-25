@@ -168,6 +168,28 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "search_jiosaavn",
+        "description": (
+            "Search JioSaavn for Indian/Bollywood/regional songs. "
+            "Use this whenever the user mentions Hindi, Indian, Bollywood, or regional language music, "
+            "or when context_search returns weak results. "
+            "No API key required."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Search query — song title, lyric fragment, artist name, or free-text description. "
+                        "Include language or film name if known, e.g. 'tum hi ho aashiqui 2'."
+                    )
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
         "name": "search_context",
         "description": (
             "Search for songs using non-audio contextual clues: decade, genre, mood, "
@@ -319,8 +341,8 @@ def _search_melody(params: dict, session) -> dict:
 
 def _search_lyrics(params: dict, session) -> dict:
     """
-    Lyrics search via Genius API (or your preferred provider).
-    Requires GENIUS_API_TOKEN env var.
+    Lyrics search via Genius API.
+    Requires GENIUS_API_TOKEN env var. Logs a warning and returns empty if not set.
     """
     fragment = params["lyric_fragment"]
     context = params.get("context_hint", "")
@@ -328,32 +350,116 @@ def _search_lyrics(params: dict, session) -> dict:
 
     token = os.getenv("GENIUS_API_TOKEN")
     if not token:
-        return {"error": "GENIUS_API_TOKEN not set", "candidates": []}
+        print("[tools] WARNING: GENIUS_API_TOKEN not set — skipping Genius lyrics search")
+        return {"candidates": [], "note": "GENIUS_API_TOKEN not configured"}
 
     try:
         query = f"{fragment} {context}".strip()
-        headers = {"Authorization": f"Bearer {token}"}
         r = requests.get(
             "https://api.genius.com/search",
             params={"q": query, "per_page": 5},
-            headers=headers,
+            headers={"Authorization": f"Bearer {token}"},
             timeout=5,
         )
         r.raise_for_status()
         hits = r.json()["response"]["hits"]
-        return {
-            "candidates": [
-                {
-                    "title": h["result"]["title"],
-                    "artist": h["result"]["primary_artist"]["name"],
-                    "confidence": 0.4,  # base confidence; agent refines this
-                    "source": "genius_lyrics",
-                }
-                for h in hits
-            ]
-        }
+        candidates = [
+            {
+                "title": h["result"]["title"],
+                "artist": h["result"]["primary_artist"]["name"],
+                "confidence": 0.5,  # lyrics are high-signal; agent refines further
+                "source": "genius_lyrics",
+            }
+            for h in hits
+        ]
+        for c in candidates:
+            session.upsert_candidate(c["title"], c["artist"], c["confidence"], f"lyrics: {fragment}")
+        return {"candidates": candidates}
     except Exception as e:
+        print(f"[tools] Genius search error: {e}")
         return {"error": str(e), "candidates": []}
+
+
+def _search_jiosaavn(params: dict, session) -> dict:
+    """
+    Search JioSaavn for Indian/Bollywood/regional songs.
+    Primary: jiosaavn.com/api.php (search.getResults — no auth required).
+    Fallback: Genius API (if JioSaavn is unreachable).
+    Silently skips if both fail — never surfaces errors to the user.
+    """
+    query = params["query"]
+    session.add_clue("lyric", f"JioSaavn: {query}")
+
+    # ── Primary: JioSaavn internal API ───────────────────────────────────────
+    try:
+        r = requests.get(
+            "https://www.jiosaavn.com/api.php",
+            params={
+                "__call": "search.getResults",
+                "q": query,
+                "p": 1,
+                "n": 5,
+                "_format": "json",
+                "_marker": 0,
+                "ctx": "web6dot0",
+            },
+            timeout=6,
+        )
+        r.raise_for_status()
+        data = r.json()
+        results = data.get("results", [])
+
+        candidates = []
+        for song in results:
+            title = song.get("song", "")
+            if not title:
+                continue
+            candidates.append({
+                "title": title,
+                "artist": song.get("primary_artists", "Unknown"),
+                "year": song.get("year", ""),
+                "language": song.get("language", ""),
+                "perma_url": song.get("perma_url", ""),
+                "confidence": 0.5,
+                "source": "jiosaavn",
+            })
+
+        if candidates:
+            for c in candidates:
+                session.upsert_candidate(c["title"], c["artist"], c["confidence"], f"jiosaavn: {query}")
+            return {"candidates": candidates}
+
+    except Exception:
+        pass  # fall through to Genius fallback
+
+    # ── Fallback: Genius API ───────────────────────────────────────────────────
+    token = os.getenv("GENIUS_API_TOKEN")
+    if not token:
+        return {"candidates": [], "note": "JioSaavn unavailable and GENIUS_API_TOKEN not set"}
+
+    try:
+        r = requests.get(
+            "https://api.genius.com/search",
+            params={"q": query, "per_page": 5},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        hits = r.json()["response"]["hits"]
+        candidates = [
+            {
+                "title": h["result"]["title"],
+                "artist": h["result"]["primary_artist"]["name"],
+                "confidence": 0.45,
+                "source": "genius_fallback",
+            }
+            for h in hits
+        ]
+        for c in candidates:
+            session.upsert_candidate(c["title"], c["artist"], c["confidence"], f"jiosaavn-fallback: {query}")
+        return {"candidates": candidates}
+    except Exception:
+        return {"candidates": []}
 
 
 def _search_context(params: dict, session) -> dict:
@@ -496,6 +602,7 @@ TOOL_MAP = {
     "analyse_audio": _analyse_audio,
     "search_melody": _search_melody,
     "search_lyrics": _search_lyrics,
+    "search_jiosaavn": _search_jiosaavn,
     "search_context": _search_context,
     "play_candidate": _play_candidate,
 }

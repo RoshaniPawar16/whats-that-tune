@@ -6,6 +6,9 @@
 # Private files folder (local audio, recordings, temp files)
 files/
 
+# Chromagram corpus index (built locally, not committed)
+corpus/
+
 # CLI (local dev tool, not part of the repo)
 cli.py
 

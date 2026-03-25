@@ -10,16 +10,22 @@ Works for Western and Indian film music.
 
 ## how it works
 
-[how it works &rarr;](docs/how-it-works.md)
+The agent maintains a belief state - a ranked list of candidate songs with confidence scores - and narrows it down across turns using audio analysis, lyrics search, and context clues. Full diagram in [docs/how-it-works.md](docs/how-it-works.md).
+
+## works best when you
+
+Type a lyric fragment, even two or three words - lyrics are the fastest path to a match. Say the language or film name if you know it - Bollywood, Tamil, Telugu, or the film title will narrow it down immediately. Hum first and then add context - the audio gives Mnemo a melodic fingerprint, and your description rules out the rest.
 
 ## run it
 
 ```
 pip install -r requirements.txt
 cp .env.example .env
-python cli.py
+# add your ANTHROPIC_API_KEY, then optionally GENIUS_API_TOKEN and Spotify credentials
+uvicorn api:app --reload
+# open http://localhost:8000
 ```
 
 ## stack
 
-Python · FastAPI · Claude (Anthropic) · librosa · Spotify API
+Python · FastAPI · Claude (Anthropic) · librosa · Genius API · JioSaavn · Spotify API
