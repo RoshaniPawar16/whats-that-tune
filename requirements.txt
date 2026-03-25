@@ -1,0 +1,25 @@
+# Core
+anthropic>=0.40.0
+librosa>=0.10.0
+numpy>=1.24.0
+
+# Audio I/O
+sounddevice>=0.4.6
+soundfile>=0.12.0
+
+# APIs (optional — set tokens in .env)
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# HTTP API
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# Tests
+pytest>=8.0.0
+
+# Pitch tracking (better than librosa YIN for humming)
+# basic-pitch  # pip install basic-pitch  (Spotify — optional upgrade)
+
+# Vector search (for when you build the corpus index)
+# faiss-cpu>=1.7.4
