@@ -10,7 +10,7 @@ Works for Western and Indian film music.
 
 ## how it works
 
-![diagram](docs/how-it-works.md)
+[how it works &rarr;](docs/how-it-works.md)
 
 ## run it
 
