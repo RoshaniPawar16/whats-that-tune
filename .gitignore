@@ -12,6 +12,9 @@ corpus/
 # CLI (local dev tool, not part of the repo)
 cli.py
 
+# AI assistant instruction file — local only
+CLAUDE.md
+
 # Python
 __pycache__/
 *.py[cod]

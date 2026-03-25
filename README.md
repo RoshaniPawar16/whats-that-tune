@@ -10,21 +10,59 @@ Works for Western and Indian film music.
 
 ## how it works
 
-The agent maintains a belief state - a ranked list of candidate songs with confidence scores - and narrows it down across turns using audio analysis, lyrics search, and context clues. Full diagram in [docs/how-it-works.md](docs/how-it-works.md).
+One question at a time. Each answer rules out more songs until only one is left. Full diagram in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## works best when you
 
-Type a lyric fragment, even two or three words - lyrics are the fastest path to a match. Say the language or film name if you know it - Bollywood, Tamil, Telugu, or the film title will narrow it down immediately. Hum first and then add context - the audio gives Mnemo a melodic fingerprint, and your description rules out the rest.
+Type a lyric, even two or three words.
+
+Say the language or film name if you know it.
+
+Hum first, then describe.
 
 ## run it
 
+**Web UI**
 ```
 pip install -r requirements.txt
 cp .env.example .env
-# add your ANTHROPIC_API_KEY, then optionally GENIUS_API_TOKEN and Spotify credentials
 uvicorn api:app --reload
-# open http://localhost:8000
 ```
+Open `http://localhost:8000`.
+
+**Terminal**
+```
+python cli.py
+python cli.py --audio files/my_hum.wav
+```
+
+**Tests**
+```
+pytest tests/
+```
+
+## api keys
+
+`ANTHROPIC_API_KEY` is required. Everything else is optional but improves results.
+
+- `GENIUS_API_TOKEN` - lyrics search. Get one at genius.com/api-clients.
+- `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` - Western music context and previews.
+- JioSaavn works without any key.
+
+## melody matching
+
+Melody search is disabled until you build a corpus index from your own audio files. Add audio files and run:
+
+```
+python -c "
+from matcher import ChromaMatcher
+m = ChromaMatcher()
+m.add_directory('your_music_folder', metadata={})
+m.save('corpus/chroma_index.pkl')
+"
+```
+
+Everything else works without it.
 
 ## stack
 

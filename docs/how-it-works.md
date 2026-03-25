@@ -2,39 +2,35 @@
 
 ```mermaid
 flowchart TD
-    A([User hums, sings, or describes]) --> B{Input type?}
+    A([User sends a clue\ntext · audio · or both]) --> B[Agent reads clue\nand conversation history]
 
-    B -->|Audio| C[Audio Analysis\nlibrosa pyin]
-    B -->|Lyrics / text| E2
-    B -->|Indian / Bollywood context| E3
-    B -->|Western context| G
+    B --> C{Which tools\nto call?}
 
-    C --> D[Feature Extraction\npitch sequence · tempo · key · chroma]
+    C -->|Audio present| D[analyse_audio\nlibrosa pyin\nextracts pitch · tempo · key]
+    C -->|Lyric fragment| E[search_lyrics\nGenius API]
+    C -->|Indian / Bollywood / regional| F[search_jiosaavn\njiosaavn.com · no auth]
+    C -->|Western context / decade / genre| G[search_context\nSpotify search API]
+    C -->|Pitch data + corpus exists| H[search_melody\nchromagram DTW\nneeds corpus index]
 
-    D --> E1[Chromagram DTW\nmelody matching\nneeds corpus index]
-    D --> E2
+    D --> I[Agent ranks candidates\nby confidence]
+    E --> I
+    F --> I
+    G --> I
+    H --> I
 
-    E2[Lyrics Search\nGenius API] --> F
-    E3[JioSaavn Search\njiosaavn.com · no auth] --> F
-    E1 --> F
+    I --> J{Top candidate\nconfidence > 0.7?}
 
-    G[Context Search\nSpotify · decade · genre · mood\nWestern music] --> F
+    J -->|No| K[Ask ONE discriminative question]
+    K --> A
 
-    F[Score Fusion\nweighted candidate ranking] --> H
-
-    H[Belief State Update\ncandidate list · confidence scores · evidence] --> I
-
-    I{Confident?\ntop score > 0.7}
-
-    I -->|No| J[Agent picks ONE\ndiscriminative question]
-    J --> A
-
-    I -->|Yes| K[Play Preview\nSpotify or JioSaavn perma_url]
-    K --> L{User confirms?}
-    L -->|No - wrong song| J
-    L -->|Yes| M([Song found])
+    J -->|Yes| L[play_candidate\nSpotify preview or JioSaavn perma_url]
+    L --> M{User confirms?}
+    M -->|No - wrong song| K
+    M -->|Yes| N([Song found])
 ```
 
-**What's wired:** Genius lyrics search, JioSaavn Indian song search, Spotify context search, audio analysis via librosa.
+The agent (Claude) decides which tools to call each turn based on what the user said. There is no fixed routing - it reasons over the clues and picks the most useful search.
 
-**Still needs setup:** Chromagram DTW melody matching requires a corpus index — see README for build instructions. Spotify preview playback requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env`.
+**Working now:** audio analysis, Genius lyrics search, JioSaavn Indian song search, Spotify context search.
+
+**Needs setup:** Spotify preview playback needs `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env`. Melody search needs a local corpus index built first - see README.
